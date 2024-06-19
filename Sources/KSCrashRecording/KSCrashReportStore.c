@@ -77,15 +77,9 @@ static inline uint64_t getNextUniqueID(void) {
     time(&rawTime);
     struct tm time;
     gmtime_r(&rawTime, &time);
-    printf("year:%d", time.tm_year);
     uniqueID |= ((((uint64_t)time.tm_year) << (64-8)) &      0xFF00000000000000);
-    printf("year:%llx", uniqueID);
-    printf("mon:%d", time.tm_mon);
     uniqueID |= ((((uint64_t)time.tm_mon) << (64-12)) &      0x00F0000000000000);
-    printf("mon:%llx", uniqueID);
-    printf("day:%d", time.tm_mday);
     uniqueID |= ((((uint64_t)time.tm_mday) << (64-17)) &     0x000F800000000000);
-    printf("mon:%llx", uniqueID);
     uniqueID |= ((((uint64_t)time.tm_hour) << (64-22)) &     0x00007C0000000000);
     uniqueID |= ((((uint64_t)time.tm_min) << (64-28)) &      0x000003F000000000);
     uniqueID |= ((((uint64_t)time.tm_sec) << (64-34)) &      0x0000000FC0000000);
