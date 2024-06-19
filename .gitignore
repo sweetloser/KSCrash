@@ -26,3 +26,4 @@ Carthage/Build
 .build
 .swiftpm/xcode/xcuserdata
 .swiftpm/package.xcworkspace/xcuserdata
+iOS/KSCrash-iOS.xcodeproj/project.xcworkspace/xcshareddata

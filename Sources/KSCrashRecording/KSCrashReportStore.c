@@ -38,11 +38,19 @@
 #include <string.h>
 #include <unistd.h>
 
+/**
+ * UniqueID 规则
+ *  类型：int64_t
+ *   -------------------------------------------------
+ *   |      8bit   |      4bit     |    5 bit   |    5bit    |   6bit   |    6bit   |     30bit     |
+ *   -------------------------------------------------
+ *   |    year    |  month     |     day   |    hour   |   min  |    sec    |       id        |
+ *   -------------------------------------------------
+ */
 
 static int g_maxReportCount = 5;
 // Have to use max 32-bit atomics because of MIPS.
 static _Atomic(uint32_t) g_nextUniqueIDLow;
-static int64_t g_nextUniqueIDHigh;
 static const char* g_appName;
 static const char* g_reportsPath;
 static const char* g_installPath;
@@ -61,10 +69,30 @@ static int compareInt64(const void* a, const void* b)
     }
     return 0;
 }
-
-static inline int64_t getNextUniqueID(void)
-{
-    return g_nextUniqueIDHigh + g_nextUniqueIDLow++;
+// 获取下一个UniqueID
+static inline uint64_t getNextUniqueID(void) {
+    uint64_t uniqueID = 0;
+    // 计算高34bit
+    time_t rawTime;
+    time(&rawTime);
+    struct tm time;
+    gmtime_r(&rawTime, &time);
+    printf("year:%d", time.tm_year);
+    uniqueID |= ((((uint64_t)time.tm_year) << (64-8)) &      0xFF00000000000000);
+    printf("year:%llx", uniqueID);
+    printf("mon:%d", time.tm_mon);
+    uniqueID |= ((((uint64_t)time.tm_mon) << (64-12)) &      0x00F0000000000000);
+    printf("mon:%llx", uniqueID);
+    printf("day:%d", time.tm_mday);
+    uniqueID |= ((((uint64_t)time.tm_mday) << (64-17)) &     0x000F800000000000);
+    printf("mon:%llx", uniqueID);
+    uniqueID |= ((((uint64_t)time.tm_hour) << (64-22)) &     0x00007C0000000000);
+    uniqueID |= ((((uint64_t)time.tm_min) << (64-28)) &      0x000003F000000000);
+    uniqueID |= ((((uint64_t)time.tm_sec) << (64-34)) &      0x0000000FC0000000);
+    // 计算低30bit
+    g_nextUniqueIDLow++;
+    g_nextUniqueIDLow = g_nextUniqueIDLow & 0x3FFFFFFF;
+    return (uniqueID | g_nextUniqueIDLow);
 }
 
 static void getCrashReportPathByID(int64_t id, char* pathBuffer)
@@ -154,8 +182,8 @@ static void pruneReports(void)
     }
 }
 
-static void initializeIDs(void)
-{
+// 初始化id
+static void initializeIDs(void) {
     time_t rawTime;
     time(&rawTime);
     struct tm time;
@@ -165,10 +193,7 @@ static void initializeIDs(void)
                    + (int64_t)time.tm_hour * 61 * 60
                    + (int64_t)time.tm_yday * 61 * 60 * 24
                    + (int64_t)time.tm_year * 61 * 60 * 24 * 366;
-    baseID <<= 23;
-
-    g_nextUniqueIDHigh = baseID & ~(int64_t)0xffffffff;
-    g_nextUniqueIDLow = (uint32_t)(baseID & 0xffffffff);
+    g_nextUniqueIDLow = (uint32_t)(baseID & 0x3FFFFFFF);
 }
 
 
