@@ -187,6 +187,9 @@ static void initializeIDs(void) {
                    + (int64_t)time.tm_hour * 61 * 60
                    + (int64_t)time.tm_yday * 61 * 60 * 24
                    + (int64_t)time.tm_year * 61 * 60 * 24 * 366;
+    // 增加随机性
+    uint32_t rand = arc4random();
+    baseID = baseID ^ rand;
     g_nextUniqueIDLow = (uint32_t)(baseID & 0x3FFFFFFF);
 }
 
