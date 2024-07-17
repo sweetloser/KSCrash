@@ -24,56 +24,49 @@
 // THE SOFTWARE.
 //
 
-
 #import "KSCrashReportFilterJSON.h"
+#import "KSCrashReport.h"
 
-//#define KSLogger_LocalLevel TRACE
+// #define KSLogger_LocalLevel TRACE
 #import "KSLogger.h"
-
 
 @interface KSCrashReportFilterJSONEncode ()
 
-@property(nonatomic,readwrite,assign) KSJSONEncodeOption encodeOptions;
+@property(nonatomic, readwrite, assign) KSJSONEncodeOption encodeOptions;
 
 @end
 
-
 @implementation KSCrashReportFilterJSONEncode
 
-@synthesize encodeOptions = _encodeOptions;
-
-+ (KSCrashReportFilterJSONEncode*) filterWithOptions:(KSJSONEncodeOption) options
++ (instancetype)filterWithOptions:(KSJSONEncodeOption)options
 {
-    return [(KSCrashReportFilterJSONEncode*)[self alloc] initWithOptions:options];
+    return [[self alloc] initWithOptions:options];
 }
 
-- (id) initWithOptions:(KSJSONEncodeOption) options
+- (instancetype)initWithOptions:(KSJSONEncodeOption)options
 {
-    if((self = [super init]))
-    {
-        self.encodeOptions = options;
+    if ((self = [super init])) {
+        _encodeOptions = options;
     }
     return self;
 }
 
-- (void) filterReports:(NSArray*) reports
-          onCompletion:(KSCrashReportFilterCompletion) onCompletion
+- (void)filterReports:(NSArray<id<KSCrashReport>> *)reports onCompletion:(KSCrashReportFilterCompletion)onCompletion
 {
-    NSMutableArray* filteredReports = [NSMutableArray arrayWithCapacity:[reports count]];
-    for(NSDictionary* report in reports)
-    {
-        NSError* error = nil;
-        NSData* jsonData = [KSJSONCodec encode:report
-                                       options:self.encodeOptions
-                                         error:&error];
-        if(jsonData == nil)
-        {
+    NSMutableArray<id<KSCrashReport>> *filteredReports = [NSMutableArray arrayWithCapacity:[reports count]];
+    for (KSCrashReportDictionary *report in reports) {
+        if ([report isKindOfClass:[KSCrashReportDictionary class]] == NO) {
+            KSLOG_ERROR(@"Unexpected non-dictionary report: %@", report);
+            continue;
+        }
+
+        NSError *error = nil;
+        NSData *jsonData = [KSJSONCodec encode:report.value options:self.encodeOptions error:&error];
+        if (jsonData == nil) {
             kscrash_callCompletion(onCompletion, filteredReports, NO, error);
             return;
-        }
-        else
-        {
-            [filteredReports addObject:jsonData];
+        } else {
+            [filteredReports addObject:[KSCrashReportData reportWithValue:jsonData]];
         }
     }
 
@@ -82,50 +75,43 @@
 
 @end
 
-
 @interface KSCrashReportFilterJSONDecode ()
 
-@property(nonatomic,readwrite,assign) KSJSONDecodeOption decodeOptions;
+@property(nonatomic, readwrite, assign) KSJSONDecodeOption decodeOptions;
 
 @end
 
-
 @implementation KSCrashReportFilterJSONDecode
 
-@synthesize decodeOptions = _encodeOptions;
-
-+ (KSCrashReportFilterJSONDecode*) filterWithOptions:(KSJSONDecodeOption) options
++ (instancetype)filterWithOptions:(KSJSONDecodeOption)options
 {
-    return [(KSCrashReportFilterJSONDecode*)[self alloc] initWithOptions:options];
+    return [[self alloc] initWithOptions:options];
 }
 
-- (id) initWithOptions:(KSJSONDecodeOption) options
+- (instancetype)initWithOptions:(KSJSONDecodeOption)options
 {
-    if((self = [super init]))
-    {
-        self.decodeOptions = options;
+    if ((self = [super init])) {
+        _decodeOptions = options;
     }
     return self;
 }
 
-- (void) filterReports:(NSArray*) reports
-          onCompletion:(KSCrashReportFilterCompletion) onCompletion
+- (void)filterReports:(NSArray<id<KSCrashReport>> *)reports onCompletion:(KSCrashReportFilterCompletion)onCompletion
 {
-    NSMutableArray* filteredReports = [NSMutableArray arrayWithCapacity:[reports count]];
-    for(NSData* data in reports)
-    {
-        NSError* error = nil;
-        NSDictionary* report = [KSJSONCodec decode:data
-                                           options:self.decodeOptions
-                                             error:&error];
-        if(report == nil)
-        {
+    NSMutableArray<id<KSCrashReport>> *filteredReports = [NSMutableArray arrayWithCapacity:[reports count]];
+    for (KSCrashReportData *report in reports) {
+        if ([report isKindOfClass:[KSCrashReportData class]] == NO) {
+            KSLOG_ERROR(@"Unexpected non-data report: %@", report);
+            continue;
+        }
+
+        NSError *error = nil;
+        NSDictionary *decodedReport = [KSJSONCodec decode:report.value options:self.decodeOptions error:&error];
+        if (decodedReport == nil || [decodedReport isKindOfClass:[NSDictionary class]] == NO) {
             kscrash_callCompletion(onCompletion, filteredReports, NO, error);
             return;
-        }
-        else
-        {
-            [filteredReports addObject:report];
+        } else {
+            [filteredReports addObject:[KSCrashReportDictionary reportWithValue:decodedReport]];
         }
     }
 

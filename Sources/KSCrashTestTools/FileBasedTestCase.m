@@ -24,40 +24,36 @@
 // THE SOFTWARE.
 //
 
-
 #import "FileBasedTestCase.h"
-#import "XCTestCase+KSCrash.h"
-
+#import "KSTestCaseUtils.h"
 
 @implementation FileBasedTestCase
 
-@synthesize tempPath = _tempPath;
-
-- (void) setUp
+- (void)setUp
 {
     [super setUp];
-    self.tempPath = [self createTempPath];
+    self.tempPath = [KSTestCaseUtils createTempPath];
 }
 
-- (void) tearDown
+- (void)tearDown
 {
     [super tearDown];
-    [self removePath:self.tempPath];
+    [KSTestCaseUtils removePath:self.tempPath];
 }
 
-- (NSString*) generateTempFilePath
+- (NSString *)generateTempFilePath
 {
-    return [[self createTempPath] stringByAppendingPathComponent:@"temp.txt"];
+    return [self.tempPath stringByAppendingPathComponent:@"temp.txt"];
 }
 
-- (NSString*) generateFileWithData:(NSData*) data
+- (NSString *)generateFileWithData:(NSData *)data
 {
-    NSString* path = [self generateTempFilePath];
+    NSString *path = [self generateTempFilePath];
     [data writeToFile:path atomically:YES];
     return path;
 }
 
-- (NSString*) generateFileWithString:(NSString*) string
+- (NSString *)generateFileWithString:(NSString *)string
 {
     return [self generateFileWithData:[string dataUsingEncoding:NSUTF8StringEncoding]];
 }

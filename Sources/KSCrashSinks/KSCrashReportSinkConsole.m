@@ -24,38 +24,40 @@
 // THE SOFTWARE.
 //
 
-
 #import "KSCrashReportSinkConsole.h"
+#import "KSCrashReport.h"
 #import "KSCrashReportFilterAppleFmt.h"
 #import "KSCrashReportFilterBasic.h"
 
+// #define KSLogger_LocalLevel TRACE
+#import "KSLogger.h"
 
 @implementation KSCrashReportSinkConsole
 
-+ (KSCrashReportSinkConsole*) filter
++ (instancetype)filter
 {
     return [[self alloc] init];
 }
 
-- (id <KSCrashReportFilter>) defaultCrashReportFilterSet
+- (id<KSCrashReportFilter>)defaultCrashReportFilterSet
 {
-    return [KSCrashReportFilterPipeline filterWithFilters:
-            [KSCrashReportFilterAppleFmt filterWithReportStyle:KSAppleReportStyleSymbolicated],
-            self,
-            nil];
+    return [KSCrashReportFilterPipeline
+        filterWithFilters:[KSCrashReportFilterAppleFmt filterWithReportStyle:KSAppleReportStyleSymbolicated], self,
+                          nil];
 }
 
-- (void) filterReports:(NSArray*) reports
-          onCompletion:(KSCrashReportFilterCompletion) onCompletion
+- (void)filterReports:(NSArray<id<KSCrashReport>> *)reports onCompletion:(KSCrashReportFilterCompletion)onCompletion
 {
     int i = 0;
-    for(NSString* report in reports)
-    {
-        printf("Report %d:\n%s\n", ++i, report.UTF8String);
+    for (KSCrashReportString *report in reports) {
+        if ([report isKindOfClass:[KSCrashReportString class]] == NO) {
+            KSLOG_ERROR(@"Unexpected non-string report: %@", report);
+            continue;
+        }
+        printf("Report %d:\n%s\n", ++i, report.value.UTF8String);
     }
 
     kscrash_callCompletion(onCompletion, reports, YES, nil);
 }
-
 
 @end

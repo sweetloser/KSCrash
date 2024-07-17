@@ -24,52 +24,52 @@
 // THE SOFTWARE.
 //
 
-
 #import "KSCrashReportFilterGZip.h"
-#import "NSData+KSGZip.h"
+#import "KSCrashReport.h"
+#import "KSGZipHelper.h"
 
+// #define KSLogger_LocalLevel TRACE
+#import "KSLogger.h"
 
 @interface KSCrashReportFilterGZipCompress ()
 
-@property(nonatomic,readwrite,assign) int compressionLevel;
+@property(nonatomic, readwrite, assign) NSInteger compressionLevel;
 
 @end
 
 @implementation KSCrashReportFilterGZipCompress
 
-@synthesize compressionLevel = _compressionLevel;
-
-+ (KSCrashReportFilterGZipCompress*) filterWithCompressionLevel:(int) compressionLevel
++ (instancetype)filterWithCompressionLevel:(NSInteger)compressionLevel
 {
     return [[self alloc] initWithCompressionLevel:compressionLevel];
 }
 
-- (id) initWithCompressionLevel:(int) compressionLevel
+- (instancetype)initWithCompressionLevel:(NSInteger)compressionLevel
 {
-    if((self = [super init]))
-    {
-        self.compressionLevel = compressionLevel;
+    if ((self = [super init])) {
+        _compressionLevel = compressionLevel;
     }
     return self;
 }
 
-- (void) filterReports:(NSArray*) reports
-          onCompletion:(KSCrashReportFilterCompletion) onCompletion
+- (void)filterReports:(NSArray<id<KSCrashReport>> *)reports onCompletion:(KSCrashReportFilterCompletion)onCompletion
 {
-    NSMutableArray* filteredReports = [NSMutableArray arrayWithCapacity:[reports count]];
-    for(NSData* report in reports)
-    {
-        NSError* error = nil;
-        NSData* compressedData = [report gzippedWithCompressionLevel:self.compressionLevel
-                                                               error:&error];
-        if(compressedData == nil)
-        {
+    NSMutableArray<id<KSCrashReport>> *filteredReports = [NSMutableArray arrayWithCapacity:[reports count]];
+    for (KSCrashReportData *report in reports) {
+        if ([report isKindOfClass:[KSCrashReportData class]] == NO) {
+            KSLOG_ERROR(@"Unexpected non-data report: %@", report);
+            continue;
+        }
+
+        NSError *error = nil;
+        NSData *compressedData = [KSGZipHelper gzippedData:report.value
+                                          compressionLevel:(int)self.compressionLevel
+                                                     error:&error];
+        if (compressedData == nil) {
             kscrash_callCompletion(onCompletion, filteredReports, NO, error);
             return;
-        }
-        else
-        {
-            [filteredReports addObject:compressedData];
+        } else {
+            [filteredReports addObject:[KSCrashReportData reportWithValue:compressedData]];
         }
     }
 
@@ -78,30 +78,29 @@
 
 @end
 
-
 @implementation KSCrashReportFilterGZipDecompress
 
-+ (KSCrashReportFilterGZipDecompress*) filter
++ (instancetype)filter
 {
     return [[self alloc] init];
 }
 
-- (void) filterReports:(NSArray*) reports
-          onCompletion:(KSCrashReportFilterCompletion) onCompletion
+- (void)filterReports:(NSArray<id<KSCrashReport>> *)reports onCompletion:(KSCrashReportFilterCompletion)onCompletion
 {
-    NSMutableArray* filteredReports = [NSMutableArray arrayWithCapacity:[reports count]];
-    for(NSData* report in reports)
-    {
-        NSError* error = nil;
-        NSData* decompressedData = [report gunzippedWithError:&error];
-        if(decompressedData == nil)
-        {
+    NSMutableArray<id<KSCrashReport>> *filteredReports = [NSMutableArray arrayWithCapacity:[reports count]];
+    for (KSCrashReportData *report in reports) {
+        if ([report isKindOfClass:[KSCrashReportData class]] == NO) {
+            KSLOG_ERROR(@"Unexpected non-data report: %@", report);
+            continue;
+        }
+
+        NSError *error = nil;
+        NSData *decompressedData = [KSGZipHelper gunzippedData:report.value error:&error];
+        if (decompressedData == nil) {
             kscrash_callCompletion(onCompletion, filteredReports, NO, error);
             return;
-        }
-        else
-        {
-            [filteredReports addObject:decompressedData];
+        } else {
+            [filteredReports addObject:[KSCrashReportData reportWithValue:decompressedData]];
         }
     }
 

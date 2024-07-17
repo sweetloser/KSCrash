@@ -26,6 +26,10 @@
 
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
+@protocol KSCrashReport;
+
 /** Callback for filter operations.
  *
  * @param filteredReports The filtered reports (may be incomplete if "completed"
@@ -35,13 +39,15 @@
  *                  user cancelling the operation).
  * @param error Non-nil if an error occurred.
  */
-typedef void(^KSCrashReportFilterCompletion)(NSArray* filteredReports, BOOL completed, NSError* error);
-
+typedef void (^KSCrashReportFilterCompletion)(NSArray<id<KSCrashReport>> *_Nullable filteredReports, BOOL completed,
+                                              NSError *_Nullable error)
+    NS_SWIFT_UNAVAILABLE("Use Swift closures instead!");
 
 /**
  * A filter receives a set of reports, possibly transforms them, and then
  * calls a completion method.
  */
+NS_SWIFT_NAME(CrashReportFilter)
 @protocol KSCrashReportFilter <NSObject>
 
 /** Filter the specified reports.
@@ -49,11 +55,10 @@ typedef void(^KSCrashReportFilterCompletion)(NSArray* filteredReports, BOOL comp
  * @param reports The reports to process.
  * @param onCompletion Block to call when processing is complete.
  */
-- (void) filterReports:(NSArray*) reports
-          onCompletion:(KSCrashReportFilterCompletion) onCompletion;
+- (void)filterReports:(NSArray<id<KSCrashReport>> *)reports
+         onCompletion:(nullable KSCrashReportFilterCompletion)onCompletion;
 
 @end
-
 
 /** Conditionally call a completion method if it's not nil.
  *
@@ -62,13 +67,13 @@ typedef void(^KSCrashReportFilterCompletion)(NSArray* filteredReports, BOOL comp
  * @param completed The parameter to send as "completed".
  * @param error The parameter to send as "error".
  */
-static inline void kscrash_callCompletion(KSCrashReportFilterCompletion onCompletion,
-                                            NSArray* filteredReports,
-                                            BOOL completed,
-                                            NSError* error)
+static inline void kscrash_callCompletion(KSCrashReportFilterCompletion _Nullable onCompletion,
+                                          NSArray<id<KSCrashReport>> *_Nullable filteredReports, BOOL completed,
+                                          NSError *_Nullable error)
 {
-    if(onCompletion)
-    {
+    if (onCompletion) {
         onCompletion(filteredReports, completed, error);
     }
 }
+
+NS_ASSUME_NONNULL_END

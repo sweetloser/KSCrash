@@ -24,8 +24,11 @@
 // THE SOFTWARE.
 //
 
-
 #import "KSCrashReportFilter.h"
+
+#import <Foundation/Foundation.h>
+
+NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Prints reports directly to the console.
@@ -33,10 +36,15 @@
  * Input: Anything
  * Output: Same as input (passthrough)
  */
+NS_SWIFT_NAME(CrashReportSinkConsole)
 @interface KSCrashReportSinkConsole : NSObject <KSCrashReportFilter>
 
-+ (KSCrashReportSinkConsole*) filter;
+/** Creates a new filter for printing reports to the console. */
++ (instancetype)filter;
 
-- (id <KSCrashReportFilter>) defaultCrashReportFilterSet;
+/** Returns the default crash report filter set. */
+- (id<KSCrashReportFilter>)defaultCrashReportFilterSet;
 
 @end
+
+NS_ASSUME_NONNULL_END

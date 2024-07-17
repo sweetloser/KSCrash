@@ -27,7 +27,6 @@
 #include "KSCrashReportStore.h"
 #include "KSLogger.h"
 #include "KSFileUtils.h"
-
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -37,6 +36,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
 
 /**
  * UniqueID 规则
@@ -56,15 +56,12 @@ static const char* g_reportsPath;
 static const char* g_installPath;
 static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static int compareInt64(const void* a, const void* b)
+static int compareInt64(const void *a, const void *b)
 {
-    int64_t diff = *(int64_t*)a - *(int64_t*)b;
-    if(diff < 0)
-    {
+    int64_t diff = *(int64_t *)a - *(int64_t *)b;
+    if (diff < 0) {
         return -1;
-    }
-    else if(diff > 0)
-    {
+    } else if (diff > 0) {
         return 1;
     }
     return 0;
@@ -89,17 +86,16 @@ static inline uint64_t getNextUniqueID(void) {
     return (uniqueID | g_nextUniqueIDLow);
 }
 
-static void getCrashReportPathByID(int64_t id, char* pathBuffer)
+static void getCrashReportPathByID(int64_t id, char *pathBuffer)
 {
     snprintf(pathBuffer, KSCRS_MAX_PATH_LENGTH, "%s/%s-report-%016llx.json", g_reportsPath, g_appName, id);
-    
 }
 
-static int64_t getReportIDFromFilename(const char* filename)
+static int64_t getReportIDFromFilename(const char *filename)
 {
     char scanFormat[100];
     sprintf(scanFormat, "%s-report-%%" PRIx64 ".json", g_appName);
-    
+
     int64_t reportID = 0;
     sscanf(filename, scanFormat, &reportID);
     return reportID;
@@ -108,45 +104,38 @@ static int64_t getReportIDFromFilename(const char* filename)
 static int getReportCount(void)
 {
     int count = 0;
-    DIR* dir = opendir(g_reportsPath);
-    if(dir == NULL)
-    {
+    DIR *dir = opendir(g_reportsPath);
+    if (dir == NULL) {
         KSLOG_ERROR("Could not open directory %s", g_reportsPath);
         goto done;
     }
-    struct dirent* ent;
-    while((ent = readdir(dir)) != NULL)
-    {
-        if(getReportIDFromFilename(ent->d_name) > 0)
-        {
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != NULL) {
+        if (getReportIDFromFilename(ent->d_name) > 0) {
             count++;
         }
     }
 
 done:
-    if(dir != NULL)
-    {
+    if (dir != NULL) {
         closedir(dir);
     }
     return count;
 }
 
-static int getReportIDs(int64_t* reportIDs, int count)
+static int getReportIDs(int64_t *reportIDs, int count)
 {
     int index = 0;
-    DIR* dir = opendir(g_reportsPath);
-    if(dir == NULL)
-    {
+    DIR *dir = opendir(g_reportsPath);
+    if (dir == NULL) {
         KSLOG_ERROR("Could not open directory %s", g_reportsPath);
         goto done;
     }
 
-    struct dirent* ent;
-    while((ent = readdir(dir)) != NULL && index < count)
-    {
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != NULL && index < count) {
         int64_t reportID = getReportIDFromFilename(ent->d_name);
-        if(reportID > 0)
-        {
+        if (reportID > 0) {
             reportIDs[index++] = reportID;
         }
     }
@@ -154,8 +143,7 @@ static int getReportIDs(int64_t* reportIDs, int count)
     qsort(reportIDs, (unsigned)count, sizeof(reportIDs[0]), compareInt64);
 
 done:
-    if(dir != NULL)
-    {
+    if (dir != NULL) {
         closedir(dir);
     }
     return index;
@@ -164,13 +152,11 @@ done:
 static void pruneReports(void)
 {
     int reportCount = getReportCount();
-    if(reportCount > g_maxReportCount)
-    {
+    if (reportCount > g_maxReportCount) {
         int64_t reportIDs[reportCount];
         reportCount = getReportIDs(reportIDs, reportCount);
-        
-        for(int i = 0; i < reportCount - g_maxReportCount; i++)
-        {
+
+        for (int i = 0; i < reportCount - g_maxReportCount; i++) {
             kscrs_deleteReportWithID(reportIDs[i]);
         }
     }
@@ -192,11 +178,11 @@ static void initializeIDs(void) {
     baseID = baseID ^ rand;
     g_nextUniqueIDLow = (uint32_t)(baseID & 0x3FFFFFFF);
 }
-
+// clang-format on
 
 // Public API
 
-void kscrs_initialize(const char* appName, const char* installPath, const char* reportsPath)
+void kscrs_initialize(const char *appName, const char *installPath, const char *reportsPath)
 {
     pthread_mutex_lock(&g_mutex);
     g_appName = strdup(appName);
@@ -209,11 +195,10 @@ void kscrs_initialize(const char* appName, const char* installPath, const char* 
     pthread_mutex_unlock(&g_mutex);
 }
 
-int64_t kscrs_getNextCrashReport(char* crashReportPathBuffer)
+int64_t kscrs_getNextCrashReport(char *crashReportPathBuffer)
 {
     int64_t nextID = getNextUniqueID();
-    if(crashReportPathBuffer)
-    {
+    if (crashReportPathBuffer) {
         getCrashReportPathByID(nextID, crashReportPathBuffer);
     }
     return nextID;
@@ -227,7 +212,7 @@ int kscrs_getReportCount(void)
     return count;
 }
 
-int kscrs_getReportIDs(int64_t* reportIDs, int count)
+int kscrs_getReportIDs(int64_t *reportIDs, int count)
 {
     pthread_mutex_lock(&g_mutex);
     count = getReportIDs(reportIDs, count);
@@ -235,27 +220,27 @@ int kscrs_getReportIDs(int64_t* reportIDs, int count)
     return count;
 }
 
-char* kscrs_readReportAtPath(const char *path)
+char *kscrs_readReportAtPath(const char *path)
 {
     pthread_mutex_lock(&g_mutex);
-    char* result;
+    char *result;
     ksfu_readEntireFile(path, &result, NULL, 2000000);
     pthread_mutex_unlock(&g_mutex);
     return result;
 }
 
-char* kscrs_readReport(int64_t reportID)
+char *kscrs_readReport(int64_t reportID)
 {
     pthread_mutex_lock(&g_mutex);
     char path[KSCRS_MAX_PATH_LENGTH];
     getCrashReportPathByID(reportID, path);
-    char* result;
+    char *result;
     ksfu_readEntireFile(path, &result, NULL, 2000000);
     pthread_mutex_unlock(&g_mutex);
     return result;
 }
 
-int64_t kscrs_addUserReport(const char* report, int reportLength)
+int64_t kscrs_addUserReport(const char *report, int reportLength)
 {
     pthread_mutex_lock(&g_mutex);
     int64_t currentID = getNextUniqueID();
@@ -263,26 +248,22 @@ int64_t kscrs_addUserReport(const char* report, int reportLength)
     getCrashReportPathByID(currentID, crashReportPath);
 
     int fd = open(crashReportPath, O_WRONLY | O_CREAT, 0644);
-    if(fd < 0)
-    {
+    if (fd < 0) {
         KSLOG_ERROR("Could not open file %s: %s", crashReportPath, strerror(errno));
         goto done;
     }
 
     int bytesWritten = (int)write(fd, report, (unsigned)reportLength);
-    if(bytesWritten < 0)
-    {
+    if (bytesWritten < 0) {
         KSLOG_ERROR("Could not write to file %s: %s", crashReportPath, strerror(errno));
         goto done;
-    }
-    else if(bytesWritten < reportLength)
-    {
-        KSLOG_ERROR("Expected to write %d bytes to file %s, but only wrote %d", crashReportPath, reportLength, bytesWritten);
+    } else if (bytesWritten < reportLength) {
+        KSLOG_ERROR("Expected to write %d bytes to file %s, but only wrote %d", crashReportPath, reportLength,
+                    bytesWritten);
     }
 
 done:
-    if(fd >= 0)
-    {
+    if (fd >= 0) {
         close(fd);
     }
     pthread_mutex_unlock(&g_mutex);
@@ -304,7 +285,4 @@ void kscrs_deleteReportWithID(int64_t reportID)
     ksfu_removeFile(path, true);
 }
 
-void kscrs_setMaxReportCount(int maxReportCount)
-{
-    g_maxReportCount = maxReportCount;
-}
+void kscrs_setMaxReportCount(int maxReportCount) { g_maxReportCount = maxReportCount; }

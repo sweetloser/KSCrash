@@ -24,36 +24,46 @@
 //
 
 #import "KSCrashReportFilterStringify.h"
+#import "KSCrashReport.h"
+
+// #define KSLogger_LocalLevel TRACE
+#import "KSLogger.h"
 
 @implementation KSCrashReportFilterStringify
 
-+ (KSCrashReportFilterStringify*) filter
++ (instancetype)filter
 {
     return [[self alloc] init];
 }
 
-- (NSString*) stringifyObject:(id) object
+- (NSString *)stringifyReport:(id<KSCrashReport>)report
 {
-    if([object isKindOfClass:[NSString class]])
-    {
-        return object;
+    if ([report isKindOfClass:[KSCrashReportString class]]) {
+        return ((KSCrashReportString *)report).value;
     }
-    if([object isKindOfClass:[NSData class]])
-    {
-        return [[NSString alloc] initWithData:object encoding:NSUTF8StringEncoding];
+    if ([report isKindOfClass:[KSCrashReportData class]]) {
+        NSData *value = ((KSCrashReportData *)report).value;
+        return [[NSString alloc] initWithData:value encoding:NSUTF8StringEncoding];
     }
-    return [NSString stringWithFormat:@"%@", object];
+    if ([report isKindOfClass:[KSCrashReportDictionary class]]) {
+        NSDictionary *value = ((KSCrashReportDictionary *)report).value;
+        if ([NSJSONSerialization isValidJSONObject:value]) {
+            NSData *data = [NSJSONSerialization dataWithJSONObject:value options:0 error:nil];
+            return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+        }
+        return [NSString stringWithFormat:@"%@", value];
+    }
+    return [report description] ?: @"Unknown";
 }
 
-- (void) filterReports:(NSArray*) reports
-          onCompletion:(KSCrashReportFilterCompletion) onCompletion
+- (void)filterReports:(NSArray<id<KSCrashReport>> *)reports onCompletion:(KSCrashReportFilterCompletion)onCompletion
 {
-    NSMutableArray* filteredReports = [NSMutableArray arrayWithCapacity:[reports count]];
-    for(id report in reports)
-    {
-        [filteredReports addObject:[self stringifyObject:report]];
+    NSMutableArray<id<KSCrashReport>> *filteredReports = [NSMutableArray arrayWithCapacity:[reports count]];
+    for (id<KSCrashReport> report in reports) {
+        NSString *reportString = [self stringifyReport:report];
+        [filteredReports addObject:[KSCrashReportString reportWithValue:reportString]];
     }
-    
+
     kscrash_callCompletion(onCompletion, filteredReports, YES, nil);
 }
 

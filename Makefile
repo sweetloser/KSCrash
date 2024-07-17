@@ -1,20 +1,33 @@
-WORKSPACE:=iOS.xcworkspace
-SCHEME:=KSCrashLib
-SDK:=iphonesimulator
-BUILD_ARGS=-workspace $(WORKSPACE) -scheme $(SCHEME) -sdk $(SDK)
+# Directories to search
+SEARCH_DIRS = Sources Tests Samples/Common/Sources/CrashTriggers
 
-all: build
+# File extensions to format
+FILE_EXTENSIONS = c cpp h m mm
 
-.PHONY: build lint test
+# Check for clang-format-18 first, then fall back to clang-format
+CLANG_FORMAT := $(shell command -v clang-format-18 2> /dev/null || command -v clang-format 2> /dev/null)
 
-build: ## Build the selected target. Default is iOS.
-	xcodebuild $(BUILD_ARGS) build
+# Define the default target
+.PHONY: format check-format
 
-lint: ## Lint the podspec
-	pod lib lint
+all: format
 
-test: ## Test the selected target
-	xcodebuild $(BUILD_ARGS) test
+format:
+ifeq ($(CLANG_FORMAT),)
+	@echo "Error: clang-format or clang-format-18 is not installed. Please install it and try again."
+	@exit 1
+else
+	@echo "Using $(CLANG_FORMAT)"
+	find $(SEARCH_DIRS) $(foreach ext,$(FILE_EXTENSIONS),-name '*.$(ext)' -o) -false | \
+	xargs -r $(CLANG_FORMAT) -style=file -i
+endif
 
-help: ## Show help text
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+check-format:
+ifeq ($(CLANG_FORMAT),)
+	@echo "Error: clang-format or clang-format-18 is not installed. Please install it and try again."
+	@exit 1
+else
+	@echo "Checking format using $(CLANG_FORMAT)"
+	@find $(SEARCH_DIRS) $(foreach ext,$(FILE_EXTENSIONS),-name '*.$(ext)' -o) -false | \
+	xargs -r $(CLANG_FORMAT) -style=file -n -Werror
+endif

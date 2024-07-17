@@ -24,15 +24,20 @@
 // THE SOFTWARE.
 //
 
-
 #import "KSCrashInstallation.h"
 
+#import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
+NS_SWIFT_NAME(CrashInstallationStandard)
 @interface KSCrashInstallationStandard : KSCrashInstallation
 
-/** The URL to connect to. */
-@property(nonatomic,readwrite,retain) NSURL* url;
+@property(class, readonly) KSCrashInstallationStandard *sharedInstance NS_SWIFT_NAME(shared);
 
-+ (instancetype) sharedInstance;
+/** The URL to connect to. */
+@property(nonatomic, readwrite, strong) NSURL *url;
 
 @end
+
+NS_ASSUME_NONNULL_END

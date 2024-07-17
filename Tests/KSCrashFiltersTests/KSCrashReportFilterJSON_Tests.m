@@ -24,95 +24,82 @@
 // THE SOFTWARE.
 //
 
-
 #import <XCTest/XCTest.h>
 
+#import "KSCrashReport.h"
 #import "KSCrashReportFilterJSON.h"
 
+@interface KSCrashReportFilterJSON_Tests : XCTestCase
 
-@interface KSCrashReportFilterJSON_Tests : XCTestCase @end
+@property(nonatomic, copy) NSArray *decodedReports;
+@property(nonatomic, copy) NSArray *encodedReports;
 
+@end
 
 @implementation KSCrashReportFilterJSON_Tests
 
-- (void) testFilterJSONEncode
+- (void)setUp
 {
-    NSArray* decoded = [NSArray arrayWithObjects:
-                        [NSArray arrayWithObjects:@"1", @"2", @"3", nil],
-                        [NSArray arrayWithObjects:@"4", @"5", @"6", nil],
-                        [NSArray arrayWithObjects:@"7", @"8", @"9", nil],
-                        nil];
-    NSArray* encoded = [NSArray arrayWithObjects:
-                        (id _Nonnull)[@"[\"1\",\"2\",\"3\"]" dataUsingEncoding:NSUTF8StringEncoding],
-                        (id _Nonnull)[@"[\"4\",\"5\",\"6\"]" dataUsingEncoding:NSUTF8StringEncoding],
-                        (id _Nonnull)[@"[\"7\",\"8\",\"9\"]" dataUsingEncoding:NSUTF8StringEncoding],
-                        nil];
-    
+    self.decodedReports = @[
+        [KSCrashReportDictionary reportWithValue:@{ @"a" : @"b" }],
+        [KSCrashReportDictionary reportWithValue:@{ @"1" : @ { @"2" : @"3" } }],
+        [KSCrashReportDictionary reportWithValue:@{ @"?" : @[ @1, @2, @3 ] }],
+    ];
+    self.encodedReports = @[
+        [KSCrashReportData reportWithValue:[@"{\"a\":\"b\"}" dataUsingEncoding:NSUTF8StringEncoding]],
+        [KSCrashReportData reportWithValue:[@"{\"1\":{\"2\":\"3\"}}" dataUsingEncoding:NSUTF8StringEncoding]],
+        [KSCrashReportData reportWithValue:[@"{\"?\":[1,2,3]}" dataUsingEncoding:NSUTF8StringEncoding]],
+    ];
+}
+
+- (void)testFilterJSONEncode
+{
     id<KSCrashReportFilter> filter = [KSCrashReportFilterJSONEncode filterWithOptions:0];
-    [filter filterReports:decoded onCompletion:^(NSArray* filteredReports,
-                                                 BOOL completed,
-                                                 NSError* error2)
-     {
-         XCTAssertTrue(completed, @"");
-         XCTAssertNil(error2, @"");
-         XCTAssertEqualObjects(encoded, filteredReports, @"");
-     }];
+    [filter filterReports:self.decodedReports
+             onCompletion:^(NSArray *filteredReports, BOOL completed, NSError *error2) {
+                 XCTAssertTrue(completed, @"");
+                 XCTAssertNil(error2, @"");
+                 XCTAssertEqualObjects(filteredReports, self.encodedReports, @"");
+             }];
 }
 
-- (void) testFilterJSONEncodeInvalid
+- (void)testFilterJSONEncodeInvalid
 {
-    NSArray* decoded = [NSArray arrayWithObjects:
-                        [NSException exceptionWithName:@"" reason:@"" userInfo:nil],
-                        nil];
-    
+    NSArray *decoded = @[
+        [KSCrashReportDictionary reportWithValue:@{ @1 : @2 }],  // Not a JSON
+    ];
+
     id<KSCrashReportFilter> filter = [KSCrashReportFilterJSONEncode filterWithOptions:0];
-    [filter filterReports:decoded onCompletion:^(__unused NSArray* filteredReports,
-                                                 BOOL completed,
-                                                 NSError* error2)
-     {
-         XCTAssertFalse(completed, @"");
-         XCTAssertNotNil(error2, @"");
-     }];
+    [filter filterReports:decoded
+             onCompletion:^(__unused NSArray *filteredReports, BOOL completed, NSError *error2) {
+                 XCTAssertFalse(completed, @"");
+                 XCTAssertNotNil(error2, @"");
+             }];
 }
 
-- (void) testFilterJSONDencode
+- (void)testFilterJSONDencode
 {
-    NSArray* decoded = [NSArray arrayWithObjects:
-                        [NSArray arrayWithObjects:@"1", @"2", @"3", nil],
-                        [NSArray arrayWithObjects:@"4", @"5", @"6", nil],
-                        [NSArray arrayWithObjects:@"7", @"8", @"9", nil],
-                        nil];
-    NSArray* encoded = [NSArray arrayWithObjects:
-                        (id _Nonnull)[@"[\"1\",\"2\",\"3\"]" dataUsingEncoding:NSUTF8StringEncoding],
-                        (id _Nonnull)[@"[\"4\",\"5\",\"6\"]" dataUsingEncoding:NSUTF8StringEncoding],
-                        (id _Nonnull)[@"[\"7\",\"8\",\"9\"]" dataUsingEncoding:NSUTF8StringEncoding],
-                        nil];
-    
     id<KSCrashReportFilter> filter = [KSCrashReportFilterJSONDecode filterWithOptions:0];
-    [filter filterReports:encoded onCompletion:^(NSArray* filteredReports,
-                                                 BOOL completed,
-                                                 NSError* error2)
-     {
-         XCTAssertTrue(completed, @"");
-         XCTAssertNil(error2, @"");
-         XCTAssertEqualObjects(decoded, filteredReports, @"");
-     }];
+    [filter filterReports:self.encodedReports
+             onCompletion:^(NSArray *filteredReports, BOOL completed, NSError *error2) {
+                 XCTAssertTrue(completed, @"");
+                 XCTAssertNil(error2, @"");
+                 XCTAssertEqualObjects(filteredReports, self.decodedReports, @"");
+             }];
 }
 
-- (void) testFilterJSONDencodeInvalid
+- (void)testFilterJSONDencodeInvalid
 {
-    NSArray* encoded = [NSArray arrayWithObjects:
-                        (id _Nonnull)[@"[\"1\"\",\"2\",\"3\"]" dataUsingEncoding:NSUTF8StringEncoding],
-                        nil];
-    
+    NSArray *encoded = @[
+        [KSCrashReportData reportWithValue:[@"[\"1\"\",\"2\",\"3\"]" dataUsingEncoding:NSUTF8StringEncoding]],
+    ];
+
     id<KSCrashReportFilter> filter = [KSCrashReportFilterJSONDecode filterWithOptions:0];
-    [filter filterReports:encoded onCompletion:^(__unused NSArray* filteredReports,
-                                                 BOOL completed,
-                                                 NSError* error2)
-     {
-         XCTAssertFalse(completed, @"");
-         XCTAssertNotNil(error2, @"");
-     }];
+    [filter filterReports:encoded
+             onCompletion:^(__unused NSArray *filteredReports, BOOL completed, NSError *error2) {
+                 XCTAssertFalse(completed, @"");
+                 XCTAssertNotNil(error2, @"");
+             }];
 }
 
 @end

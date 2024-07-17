@@ -24,35 +24,40 @@
 // THE SOFTWARE.
 //
 
-
 #import "KSCrashInstallation.h"
 
-typedef enum
-{
+#import <Foundation/Foundation.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+typedef NS_ENUM(NSUInteger, KSCrashEmailReportStyle) {
     KSCrashEmailReportStyleJSON,
     KSCrashEmailReportStyleApple,
-} KSCrashEmailReportStyle;
+} NS_SWIFT_NAME(EmailReportStyle);
 
 /**
  * Email installation.
  * Sends reports via email.
  */
+NS_SWIFT_NAME(CrashInstallationEmail)
 @interface KSCrashInstallationEmail : KSCrashInstallation
 
+@property(class, readonly) KSCrashInstallationEmail *sharedInstance NS_SWIFT_NAME(shared);
+
 /** List of email addresses to send to (mandatory) */
-@property(nonatomic,readwrite,retain) NSArray* recipients;
+@property(nonatomic, readwrite, copy) NSArray<NSString *> *recipients;
 
 /** Email subject (mandatory).
  *
  * Default: "Crash Report (YourBundleID)"
  */
-@property(nonatomic,readwrite,retain) NSString* subject;
+@property(nonatomic, readwrite, copy) NSString *subject;
 
 /** Message to accompany the reports (optional).
  *
  * Default: nil
  */
-@property(nonatomic,readwrite,retain) NSString* message;
+@property(nonatomic, readwrite, copy, nullable) NSString *message;
 
 /** How to name the attachments (mandatory)
  *
@@ -62,20 +67,19 @@ typedef enum
  *
  * Default: "crash-report-YourBundleID-%d.txt.gz"
  */
-@property(nonatomic,readwrite,retain) NSString* filenameFmt;
+@property(nonatomic, readwrite, copy) NSString *filenameFmt;
 
 /** Which report style to use.
  */
-@property(nonatomic,readwrite,assign) KSCrashEmailReportStyle reportStyle;
+@property(nonatomic, readwrite, assign) KSCrashEmailReportStyle reportStyle;
 
 /** Use the specified report format.
  *
  * useDefaultFilenameFormat If true, also change the filename format to the default
  *                          suitable for the report format.
  */
-- (void) setReportStyle:(KSCrashEmailReportStyle)reportStyle
-useDefaultFilenameFormat:(BOOL) useDefaultFilenameFormat;
-
-+ (instancetype) sharedInstance;
+- (void)setReportStyle:(KSCrashEmailReportStyle)reportStyle useDefaultFilenameFormat:(BOOL)useDefaultFilenameFormat;
 
 @end
+
+NS_ASSUME_NONNULL_END

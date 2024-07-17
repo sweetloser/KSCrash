@@ -24,130 +24,95 @@
 // THE SOFTWARE.
 //
 
-
 #import "KSCrashInstallation.h"
-#import "KSCrashInstallation+Private.h"
-#import "KSCrashReportFilterBasic.h"
-#import "KSCrash.h"
+#import <objc/runtime.h>
 #import "KSCString.h"
+#import "KSCrash.h"
+#import "KSCrashConfiguration.h"
+#import "KSCrashInstallation+Private.h"
+#import "KSCrashReportFilterAlert.h"
+#import "KSCrashReportFilterBasic.h"
 #import "KSJSONCodecObjC.h"
 #import "KSLogger.h"
-#import "NSError+SimpleConstructor.h"
-#import <objc/runtime.h>
-
+#import "KSNSErrorHelper.h"
 
 /** Max number of properties that can be defined for writing to the report */
 #define kMaxProperties 500
 
-
-typedef struct
-{
-    const char* key;
-    const char* value;
+typedef struct {
+    const char *key;
+    const char *value;
 } ReportField;
 
-typedef struct
-{
+typedef struct {
     KSReportWriteCallback userCrashCallback;
     int reportFieldsCount;
-    ReportField* reportFields[0];
+    ReportField *reportFields[0];
 } CrashHandlerData;
 
+static CrashHandlerData *g_crashHandlerData;
 
-static CrashHandlerData* g_crashHandlerData;
+@interface KSCrashInstReportField : NSObject
 
+@property(nonatomic, readonly, assign) int index;
+@property(nonatomic, readonly, assign) ReportField *field;
 
-static void crashCallback(const KSCrashReportWriter* writer)
-{
-    for(int i = 0; i < g_crashHandlerData->reportFieldsCount; i++)
-    {
-        ReportField* field = g_crashHandlerData->reportFields[i];
-        if(field->key != NULL && field->value != NULL)
-        {
-            writer->addJSONElement(writer, field->key, field->value, true);
-        }
-    }
-    if(g_crashHandlerData->userCrashCallback != NULL)
-    {
-        g_crashHandlerData->userCrashCallback(writer);
-    }
-}
+@property(nonatomic, readwrite, copy) NSString *key;
+@property(nonatomic, readwrite, strong) id value;
 
-
-@interface KSCrashInstReportField: NSObject
-
-@property(nonatomic,readonly,assign) int index;
-@property(nonatomic,readonly,assign) ReportField* field;
-
-@property(nonatomic,readwrite,retain) NSString* key;
-@property(nonatomic,readwrite,retain) id value;
-
-@property(nonatomic,readwrite,retain) NSMutableData* fieldBacking;
-@property(nonatomic,readwrite,retain) KSCString* keyBacking;
-@property(nonatomic,readwrite,retain) KSCString* valueBacking;
+@property(nonatomic, readwrite, strong) NSMutableData *fieldBacking;
+@property(nonatomic, readwrite, strong) KSCString *keyBacking;
+@property(nonatomic, readwrite, strong) KSCString *valueBacking;
 
 @end
 
 @implementation KSCrashInstReportField
 
-@synthesize index = _index;
-@synthesize key = _key;
-@synthesize value = _value;
-@synthesize fieldBacking = _fieldBacking;
-@synthesize keyBacking = _keyBacking;
-@synthesize valueBacking= _valueBacking;
-
-+ (KSCrashInstReportField*) fieldWithIndex:(int) index
++ (KSCrashInstReportField *)fieldWithIndex:(int)index
 {
-    return [(KSCrashInstReportField*)[self alloc] initWithIndex:index];
+    return [(KSCrashInstReportField *)[self alloc] initWithIndex:index];
 }
 
-- (id) initWithIndex:(int) index
+- (id)initWithIndex:(int)index
 {
-    if((self = [super init]))
-    {
+    if ((self = [super init])) {
         _index = index;
-        self.fieldBacking = [NSMutableData dataWithLength:sizeof(*self.field)];
+        _fieldBacking = [NSMutableData dataWithLength:sizeof(*self.field)];
     }
     return self;
 }
 
-- (ReportField*) field
+- (ReportField *)field
 {
-    return (ReportField*)self.fieldBacking.mutableBytes;
+    return (ReportField *)self.fieldBacking.mutableBytes;
 }
 
-- (void) setKey:(NSString*) key
+- (void)setKey:(NSString *)key
 {
     _key = key;
-    if(key == nil)
-    {
+    if (key == nil) {
         self.keyBacking = nil;
-    }
-    else
-    {
+    } else {
         self.keyBacking = [KSCString stringWithString:key];
     }
     self.field->key = self.keyBacking.bytes;
 }
 
-- (void) setValue:(id) value
+- (void)setValue:(id)value
 {
-    if(value == nil)
-    {
+    if (value == nil) {
         _value = nil;
         self.valueBacking = nil;
         return;
     }
-    
-    NSError* error = nil;
-    NSData* jsonData = [KSJSONCodec encode:value options:KSJSONEncodeOptionPretty | KSJSONEncodeOptionSorted error:&error];
-    if(jsonData == nil)
-    {
+
+    NSError *error = nil;
+    NSData *jsonData = [KSJSONCodec encode:value
+                                   options:KSJSONEncodeOptionPretty | KSJSONEncodeOptionSorted
+                                     error:&error];
+    if (jsonData == nil) {
         KSLOG_ERROR(@"Could not set value %@ for property %@: %@", value, self.key, error);
-    }
-    else
-    {
+    } else {
         _value = value;
         self.valueBacking = [KSCString stringWithData:jsonData];
         self.field->value = self.valueBacking.bytes;
@@ -158,67 +123,58 @@ static void crashCallback(const KSCrashReportWriter* writer)
 
 @interface KSCrashInstallation ()
 
-@property(nonatomic,readwrite,assign) int nextFieldIndex;
-@property(nonatomic,readonly,assign) CrashHandlerData* crashHandlerData;
-@property(nonatomic,readwrite,retain) NSMutableData* crashHandlerDataBacking;
-@property(nonatomic,readwrite,retain) NSMutableDictionary* fields;
-@property(nonatomic,readwrite,retain) NSArray* requiredProperties;
-@property(nonatomic,readwrite,retain) KSCrashReportFilterPipeline* prependedFilters;
+@property(nonatomic, readwrite, assign) int nextFieldIndex;
+@property(nonatomic, readonly, assign) CrashHandlerData *crashHandlerData;
+@property(nonatomic, readwrite, strong) NSMutableData *crashHandlerDataBacking;
+@property(nonatomic, readwrite, strong) NSMutableDictionary *fields;
+@property(nonatomic, readwrite, copy) NSArray *requiredProperties;
+@property(nonatomic, readwrite, strong) KSCrashReportFilterPipeline *prependedFilters;
 
 @end
 
-
 @implementation KSCrashInstallation
 
-@synthesize nextFieldIndex = _nextFieldIndex;
-@synthesize crashHandlerDataBacking = _crashHandlerDataBacking;
-@synthesize fields = _fields;
-@synthesize requiredProperties = _requiredProperties;
-@synthesize prependedFilters = _prependedFilters;
-
-- (id) init
+- (id)init
 {
     [NSException raise:NSInternalInconsistencyException
                 format:@"%@ does not support init. Subclasses must call initWithRequiredProperties:", [self class]];
     return nil;
 }
 
-- (id) initWithRequiredProperties:(NSArray*) requiredProperties
+- (id)initWithRequiredProperties:(NSArray *)requiredProperties
 {
-    if((self = [super init]))
-    {
-        self.crashHandlerDataBacking = [NSMutableData dataWithLength:sizeof(*self.crashHandlerData) +
-                                        sizeof(*self.crashHandlerData->reportFields) * kMaxProperties];
-        self.fields = [NSMutableDictionary dictionary];
-        self.requiredProperties = requiredProperties;
-        self.prependedFilters = [KSCrashReportFilterPipeline filterWithFilters:nil];
+    if ((self = [super init])) {
+        _crashHandlerDataBacking =
+            [NSMutableData dataWithLength:sizeof(*self.crashHandlerData) +
+                                          sizeof(*self.crashHandlerData->reportFields) * kMaxProperties];
+        _fields = [NSMutableDictionary dictionary];
+        _requiredProperties = [requiredProperties copy];
+        _prependedFilters = [KSCrashReportFilterPipeline filterWithFilters:nil];
     }
     return self;
 }
 
-- (void) dealloc
+- (void)dealloc
 {
-    KSCrash* handler = [KSCrash sharedInstance];
-    @synchronized(handler)
-    {
-        if(g_crashHandlerData == self.crashHandlerData)
-        {
+    KSCrash *handler = [KSCrash sharedInstance];
+    @synchronized(handler) {
+        if (g_crashHandlerData == self.crashHandlerData) {
             g_crashHandlerData = NULL;
-            handler.onCrash = NULL;
+            // FIXME: Mutating the inner state
+            //            handler.onCrash = NULL;
         }
     }
 }
 
-- (CrashHandlerData*) crashHandlerData
+- (CrashHandlerData *)crashHandlerData
 {
-    return (CrashHandlerData*)self.crashHandlerDataBacking.mutableBytes;
+    return (CrashHandlerData *)self.crashHandlerDataBacking.mutableBytes;
 }
 
-- (KSCrashInstReportField*) reportFieldForProperty:(NSString*) propertyName
+- (KSCrashInstReportField *)reportFieldForProperty:(NSString *)propertyName
 {
-    KSCrashInstReportField* field = [self.fields objectForKey:propertyName];
-    if(field == nil)
-    {
+    KSCrashInstReportField *field = [self.fields objectForKey:propertyName];
+    if (field == nil) {
         field = [KSCrashInstReportField fieldWithIndex:self.nextFieldIndex];
         self.nextFieldIndex++;
         self.crashHandlerData->reportFieldsCount = self.nextFieldIndex;
@@ -228,141 +184,177 @@ static void crashCallback(const KSCrashReportWriter* writer)
     return field;
 }
 
-- (void) reportFieldForProperty:(NSString*) propertyName setKey:(id) key
+- (void)reportFieldForProperty:(NSString *)propertyName setKey:(id)key
 {
-    KSCrashInstReportField* field = [self reportFieldForProperty:propertyName];
+    KSCrashInstReportField *field = [self reportFieldForProperty:propertyName];
     field.key = key;
 }
 
-- (void) reportFieldForProperty:(NSString*) propertyName setValue:(id) value
+- (void)reportFieldForProperty:(NSString *)propertyName setValue:(id)value
 {
-    KSCrashInstReportField* field = [self reportFieldForProperty:propertyName];
+    KSCrashInstReportField *field = [self reportFieldForProperty:propertyName];
     field.value = value;
 }
 
-- (NSError*) validateProperties
+- (NSError *)validateProperties
 {
-    NSMutableString* errors = [NSMutableString string];
-    for(NSString* propertyName in self.requiredProperties)
-    {
-        NSString* nextError = nil;
-        @try
-        {
+    NSMutableString *errors = [NSMutableString string];
+    for (NSString *propertyName in self.requiredProperties) {
+        NSString *nextError = nil;
+        @try {
             id value = [self valueForKey:propertyName];
-            if(value == nil)
-            {
+            if (value == nil) {
                 nextError = @"is nil";
             }
-        }
-        @catch (NSException *exception)
-        {
+        } @catch (NSException *exception) {
             nextError = @"property not found";
         }
-        if(nextError != nil)
-        {
-            if([errors length] > 0)
-            {
+        if (nextError != nil) {
+            if ([errors length] > 0) {
                 [errors appendString:@", "];
             }
             [errors appendFormat:@"%@ (%@)", propertyName, nextError];
         }
     }
-    if([errors length] > 0)
-    {
-        return [NSError errorWithDomain:[[self class] description]
-                                   code:0
-                            description:@"Installation properties failed validation: %@", errors];
+    if ([errors length] > 0) {
+        return [KSNSErrorHelper errorWithDomain:[[self class] description]
+                                           code:0
+                                    description:@"Installation properties failed validation: %@", errors];
     }
     return nil;
 }
 
-- (NSString*) makeKeyPath:(NSString*) keyPath
+- (NSString *)makeKeyPath:(NSString *)keyPath
 {
-    if([keyPath length] == 0)
-    {
+    if ([keyPath length] == 0) {
         return keyPath;
     }
     BOOL isAbsoluteKeyPath = [keyPath length] > 0 && [keyPath characterAtIndex:0] == '/';
     return isAbsoluteKeyPath ? keyPath : [@"user/" stringByAppendingString:keyPath];
 }
 
-- (NSArray*) makeKeyPaths:(NSArray*) keyPaths
+- (NSArray *)makeKeyPaths:(NSArray *)keyPaths
 {
-    if([keyPaths count] == 0)
-    {
+    if ([keyPaths count] == 0) {
         return keyPaths;
     }
-    NSMutableArray* result = [NSMutableArray arrayWithCapacity:[keyPaths count]];
-    for(NSString* keyPath in keyPaths)
-    {
+    NSMutableArray *result = [NSMutableArray arrayWithCapacity:[keyPaths count]];
+    for (NSString *keyPath in keyPaths) {
         [result addObject:[self makeKeyPath:keyPath]];
     }
     return result;
 }
 
-- (KSReportWriteCallback) onCrash
+- (KSReportWriteCallback)onCrash
 {
-    @synchronized(self)
-    {
+    @synchronized(self) {
         return self.crashHandlerData->userCrashCallback;
     }
 }
 
-- (void) setOnCrash:(KSReportWriteCallback)onCrash
+- (void)setOnCrash:(KSReportWriteCallback)onCrash
 {
-    @synchronized(self)
-    {
+    @synchronized(self) {
         self.crashHandlerData->userCrashCallback = onCrash;
     }
 }
 
-- (void) install
+- (BOOL)installWithConfiguration:(KSCrashConfiguration *)configuration error:(NSError **)error
 {
-    KSCrash* handler = [KSCrash sharedInstance];
-    @synchronized(handler)
-    {
+    KSCrash *handler = [KSCrash sharedInstance];
+    @synchronized(handler) {
         g_crashHandlerData = self.crashHandlerData;
-        handler.onCrash = crashCallback;
-        [handler install];
+
+        configuration.crashNotifyCallback = ^(const struct KSCrashReportWriter *_Nonnull writer) {
+            CrashHandlerData *crashHandlerData = g_crashHandlerData;
+            if (crashHandlerData == NULL) {
+                return;
+            }
+            for (int i = 0; i < crashHandlerData->reportFieldsCount; i++) {
+                ReportField *field = crashHandlerData->reportFields[i];
+                if (field->key != NULL && field->value != NULL) {
+                    writer->addJSONElement(writer, field->key, field->value, true);
+                }
+            }
+            if (crashHandlerData->userCrashCallback != NULL) {
+                crashHandlerData->userCrashCallback(writer);
+            }
+        };
+
+        NSError *installError = nil;
+        BOOL success = [handler installWithConfiguration:configuration error:&installError];
+
+        if (success == NO && error != NULL) {
+            *error = installError;
+        }
+
+        return success;
     }
 }
 
-- (void) sendAllReportsWithCompletion:(KSCrashReportFilterCompletion) onCompletion
+- (void)sendAllReportsWithCompletion:(KSCrashReportFilterCompletion)onCompletion
 {
-    NSError* error = [self validateProperties];
-    if(error != nil)
-    {
-        if(onCompletion != nil)
-        {
+    NSError *error = [self validateProperties];
+    if (error != nil) {
+        if (onCompletion != nil) {
             onCompletion(nil, NO, error);
         }
         return;
     }
 
     id<KSCrashReportFilter> sink = [self sink];
-    if(sink == nil)
-    {
-        onCompletion(nil, NO, [NSError errorWithDomain:[[self class] description]
-                                                  code:0
-                                           description:@"Sink was nil (subclasses must implement method \"sink\")"]);
+    if (sink == nil) {
+        onCompletion(nil, NO,
+                     [KSNSErrorHelper errorWithDomain:[[self class] description]
+                                                 code:0
+                                          description:@"Sink was nil (subclasses must implement method \"sink\")"]);
         return;
     }
-    
+
     sink = [KSCrashReportFilterPipeline filterWithFilters:self.prependedFilters, sink, nil];
 
-    KSCrash* handler = [KSCrash sharedInstance];
+    KSCrash *handler = [KSCrash sharedInstance];
     handler.sink = sink;
     [handler sendAllReportsWithCompletion:onCompletion];
 }
 
-- (void) addPreFilter:(id<KSCrashReportFilter>) filter
+- (void)addPreFilter:(id<KSCrashReportFilter>)filter
 {
     [self.prependedFilters addFilter:filter];
 }
 
-- (id<KSCrashReportFilter>) sink
+- (id<KSCrashReportFilter>)sink
 {
     return nil;
+}
+
+- (void)addConditionalAlertWithTitle:(NSString *)title
+                             message:(NSString *)message
+                           yesAnswer:(NSString *)yesAnswer
+                            noAnswer:(NSString *)noAnswer
+{
+    [self addPreFilter:[KSCrashReportFilterAlert filterWithTitle:title
+                                                         message:message
+                                                       yesAnswer:yesAnswer
+                                                        noAnswer:noAnswer]];
+    // FIXME: Accessing config
+    //    KSCrash* handler = [KSCrash sharedInstance];
+    //    if(handler.deleteBehaviorAfterSendAll == KSCDeleteOnSucess)
+    //    {
+    //        // Better to delete always, or else the user will keep getting nagged
+    //        // until he presses "yes"!
+    //        handler.deleteBehaviorAfterSendAll = KSCDeleteAlways;
+    //    }
+}
+
+- (void)addUnconditionalAlertWithTitle:(NSString *)title
+                               message:(NSString *)message
+                     dismissButtonText:(NSString *)dismissButtonText
+{
+    [self addPreFilter:[KSCrashReportFilterAlert filterWithTitle:title
+                                                         message:message
+                                                       yesAnswer:dismissButtonText
+                                                        noAnswer:nil]];
 }
 
 @end

@@ -29,6 +29,8 @@ jobs:
         include:
           - platform: iOS
           - platform: iOS
+            xcode-version: "latest"
+          - platform: iOS
             os-version: ~16.4.0
             macos-version: "13"
             xcode-version: "14.3.1"
@@ -65,7 +67,7 @@ jobs:
 
       - name: Run Unit Tests
         uses: bamx23/xcodebuild@os-version
-        timeout-minutes: 10
+        timeout-minutes: 15
         with:
           workspace: ".swiftpm/xcode/package.xcworkspace"
           scheme: "KSCrash-Package"
