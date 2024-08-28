@@ -25,8 +25,13 @@
 //
 
 #include "KSCrashReportStore.h"
+<<<<<<< HEAD
 #include "KSLogger.h"
 #include "KSFileUtils.h"
+=======
+
+#include <assert.h>
+>>>>>>> 33feb0a (Add reports-only set up API (#548))
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -51,9 +56,15 @@
 static int g_maxReportCount = 5;
 // Have to use max 32-bit atomics because of MIPS.
 static _Atomic(uint32_t) g_nextUniqueIDLow;
+<<<<<<< HEAD
 static const char* g_appName;
 static const char* g_reportsPath;
 static const char* g_installPath;
+=======
+static int64_t g_nextUniqueIDHigh;
+static const char *g_appName;
+static const char *g_reportsPath;
+>>>>>>> 33feb0a (Add reports-only set up API (#548))
 static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int compareInt64(const void *a, const void *b)
@@ -88,6 +99,7 @@ static inline uint64_t getNextUniqueID(void) {
 
 static void getCrashReportPathByID(int64_t id, char *pathBuffer)
 {
+    assert(g_reportsPath != NULL);
     snprintf(pathBuffer, KSCRS_MAX_PATH_LENGTH, "%s/%s-report-%016llx.json", g_reportsPath, g_appName, id);
 }
 
@@ -103,6 +115,11 @@ static int64_t getReportIDFromFilename(const char *filename)
 
 static int getReportCount(void)
 {
+    if (g_reportsPath == NULL) {
+        KSLOG_ERROR("Reports store is not set up");
+        return 0;
+    }
+
     int count = 0;
     DIR *dir = opendir(g_reportsPath);
     if (dir == NULL) {
@@ -125,6 +142,11 @@ done:
 
 static int getReportIDs(int64_t *reportIDs, int count)
 {
+    if (g_reportsPath == NULL) {
+        KSLOG_ERROR("Reports store is not set up");
+        return 0;
+    }
+
     int index = 0;
     DIR *dir = opendir(g_reportsPath);
     if (dir == NULL) {
@@ -182,17 +204,29 @@ static void initializeIDs(void) {
 
 // Public API
 
-void kscrs_initialize(const char *appName, const char *installPath, const char *reportsPath)
+void kscrs_initialize(const char *appName, const char *reportsPath)
 {
+    const char *previousAppName = NULL;
+    const char *previousReportsPath = NULL;
+
     pthread_mutex_lock(&g_mutex);
+    previousAppName = g_appName;
+    previousReportsPath = g_reportsPath;
     g_appName = strdup(appName);
-    g_installPath = strdup(installPath);
-    ksfu_makePath(installPath);
     g_reportsPath = strdup(reportsPath);
     ksfu_makePath(reportsPath);
     pruneReports();
     initializeIDs();
     pthread_mutex_unlock(&g_mutex);
+
+    if (previousAppName) {
+        KSLOG_WARN("Reports app name is changed from '%s' to '%s'", previousAppName, appName);
+        free((void *)previousAppName);
+    }
+    if (previousReportsPath) {
+        KSLOG_WARN("Reports path is changed from '%s' to '%s'", previousReportsPath, reportsPath);
+        free((void *)previousReportsPath);
+    }
 }
 
 int64_t kscrs_getNextCrashReport(char *crashReportPathBuffer)
@@ -274,7 +308,11 @@ done:
 void kscrs_deleteAllReports(void)
 {
     pthread_mutex_lock(&g_mutex);
-    ksfu_deleteContentsOfPath(g_reportsPath);
+    if (g_reportsPath != NULL) {
+        ksfu_deleteContentsOfPath(g_reportsPath);
+    } else {
+        KSLOG_WARN("Reports store is not set up");
+    }
     pthread_mutex_unlock(&g_mutex);
 }
 
