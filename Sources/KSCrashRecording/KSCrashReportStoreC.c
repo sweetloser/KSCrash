@@ -24,17 +24,12 @@
 // THE SOFTWARE.
 //
 
-<<<<<<< HEAD:Sources/KSCrashRecording/KSCrashReportStore.c
+#include "KSCrashReportStoreC+Private.h"
 #include "KSCrashReportStore.h"
-<<<<<<< HEAD
-#include "KSLogger.h"
+#include "KSCrashReportFixer.h"
 #include "KSFileUtils.h"
-=======
-
-=======
->>>>>>> e680dd9 (Extract report store API (#549)):Sources/KSCrashRecording/KSCrashReportStoreC.c
+#include "KSLogger.h"
 #include <assert.h>
->>>>>>> 33feb0a (Add reports-only set up API (#548))
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -45,8 +40,6 @@
 #include <string.h>
 #include <unistd.h>
 
-<<<<<<< HEAD:Sources/KSCrashRecording/KSCrashReportStore.c
-
 /**
  * UniqueID 规则
  *  类型：int64_t
@@ -56,27 +49,11 @@
  *   |    year    |  month     |     day   |    hour   |   min  |    sec    |       id        |
  *   -------------------------------------------------
  */
-=======
-#include "KSCrashReportFixer.h"
-#include "KSCrashReportStoreC+Private.h"
-#include "KSFileUtils.h"
-#include "KSLogger.h"
->>>>>>> e680dd9 (Extract report store API (#549)):Sources/KSCrashRecording/KSCrashReportStoreC.c
 
-// Have to use max 32-bit atomics because of MIPS.
-static _Atomic(uint32_t) g_nextUniqueIDLow;
-<<<<<<< HEAD
-static const char* g_appName;
-static const char* g_reportsPath;
 static const char* g_installPath;
-=======
-static int64_t g_nextUniqueIDHigh;
-<<<<<<< HEAD:Sources/KSCrashRecording/KSCrashReportStore.c
 static const char *g_appName;
 static const char *g_reportsPath;
->>>>>>> 33feb0a (Add reports-only set up API (#548))
-=======
->>>>>>> e680dd9 (Extract report store API (#549)):Sources/KSCrashRecording/KSCrashReportStoreC.c
+static _Atomic(uint32_t) g_nextUniqueIDLow;
 static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int compareInt64(const void *a, const void *b)
